@@ -1,26 +1,46 @@
 @import "tailwindcss";
 
+/* Import Leaflet CSS */
+@import "leaflet/dist/leaflet.css";
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f9fafb;
+  --foreground: #111827;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #030712;
+    --foreground: #f9fafb;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
+
+/* Leaflet — éviter les conflits z-index avec les modals */
+.leaflet-pane,
+.leaflet-control {
+  z-index: 10 !important;
+}
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 20 !important;
+}
+
+/* Fix pour le conteneur de carte dans Next.js */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
