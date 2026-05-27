@@ -50,7 +50,6 @@ export function useGeoTracking(): UseGeoTrackingReturn {
   const lastCityPositionRef    = useRef<GeoPoint | null>(null);
   const isMountedRef           = useRef(true);
   const wakeLockRef            = useRef<WakeLockSentinel | null>(null);
-  const audioCtxRef            = useRef<AudioContext | null>(null);
   const isTrackingRef          = useRef(false);  // Ref pour closure dans visibilitychange
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -62,7 +61,6 @@ export function useGeoTracking(): UseGeoTrackingReturn {
     return () => {
       isMountedRef.current = false;
       doReleaseWakeLock();
-      stopSilentAudio();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -101,30 +99,6 @@ export function useGeoTracking(): UseGeoTrackingReturn {
       wakeLockRef.current = null;
     }
     if (isMountedRef.current) setHasWakeLock(false);
-  };
-
-  // ── Audio silencieux (empêche iOS/Android de suspendre l'onglet) ────────────
-
-  const startSilentAudio = () => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const AudioCtx: typeof AudioContext = window.AudioContext ?? (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      audioCtxRef.current = new AudioCtx();
-      const osc  = audioCtxRef.current.createOscillator();
-      const gain = audioCtxRef.current.createGain();
-      gain.gain.value = 0.001; // quasi-inaudible
-      osc.connect(gain);
-      gain.connect(audioCtxRef.current.destination);
-      osc.start();
-    } catch { /* audio non disponible */ }
-  };
-
-  const stopSilentAudio = () => {
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close().catch(() => {});
-      audioCtxRef.current = null;
-    }
   };
 
   // ── GPS ────────────────────────────────────────────────────────────────────
@@ -298,9 +272,8 @@ export function useGeoTracking(): UseGeoTrackingReturn {
     lastCityCheckRef.current    = 0;
     lastCityPositionRef.current = null;
 
-    // Wake Lock + audio silencieux pour le fond de tâche
+    // Wake Lock — empêche l'écran de s'éteindre (sans toucher à l'audio)
     doAcquireWakeLock();
-    startSilentAudio();
 
     // Position de départ (stockée IMMÉDIATEMENT, pas conditionnée à la ville)
     navigator.geolocation.getCurrentPosition(
@@ -361,7 +334,6 @@ export function useGeoTracking(): UseGeoTrackingReturn {
     }
     setIsTracking(false);
     doReleaseWakeLock();
-    stopSilentAudio();
 
     if (!tripRef.current) return null;
 
