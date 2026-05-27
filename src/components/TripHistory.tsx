@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Trip } from '@/types/trip';
 import {
-  loadTrips,
-  deleteTrip,
-  formatDistance,
-  formatIndemnite,
-  formatDateTime,
-  formatDuration,
+  loadTrips, deleteTrip,
+  formatDistance, formatIndemnite, formatDateTime, formatDuration,
 } from '@/lib/tripCalculations';
+import { loadTripsFromCloud, deleteTripFromCloud } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TripHistoryProps {
   refreshKey: number;
@@ -17,32 +15,56 @@ interface TripHistoryProps {
 }
 
 export default function TripHistory({ refreshKey, onSelectTrip }: TripHistoryProps) {
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const { user } = useAuth();
+  const [trips,   setTrips]   = useState<Trip[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setTrips(loadTrips().filter((t) => t.status === 'completed'));
-  }, [refreshKey]);
-
-  const handleDelete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirm('Supprimer ce trajet ?')) {
-      deleteTrip(id);
-      setTrips((prev) => prev.filter((t) => t.id !== id));
+  const fetchTrips = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (user) {
+        // Utilisateur connecté → charger depuis Supabase (tous les appareils)
+        const cloud = await loadTripsFromCloud();
+        setTrips(cloud ?? loadTrips().filter((t) => t.status === 'completed'));
+      } else {
+        // Anonyme → localStorage
+        setTrips(loadTrips().filter((t) => t.status === 'completed'));
+      }
+    } finally {
+      setLoading(false);
     }
+  }, [user]);
+
+  useEffect(() => { fetchTrips(); }, [fetchTrips, refreshKey]);
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Supprimer ce trajet ?')) return;
+    deleteTrip(id);
+    if (user) await deleteTripFromCloud(id);
+    setTrips((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const totalIndemnite = trips.reduce((sum, t) => sum + t.indemnite, 0);
-  const totalDistance = trips.reduce((sum, t) => sum + t.distanceKm, 0);
+  const totalIndemnite = trips.reduce((s, t) => s + t.indemnite, 0);
+  const totalDistance  = trips.reduce((s, t) => s + t.distanceKm, 0);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-20 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />
+        ))}
+      </div>
+    );
+  }
 
   if (trips.length === 0) {
     return (
       <div className="text-center py-12">
         <div className="text-5xl mb-4">🗺️</div>
-        <p className="text-gray-500 dark:text-gray-400 text-sm">
-          Aucun trajet enregistré pour le moment
-        </p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">Aucun trajet enregistré</p>
         <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">
-          Démarrez votre premier trajet ci-dessus
+          {user ? 'Vos trajets apparaîtront ici après votre premier trajet.' : 'Démarrez votre premier trajet ci-dessus.'}
         </p>
       </div>
     );
@@ -52,7 +74,7 @@ export default function TripHistory({ refreshKey, onSelectTrip }: TripHistoryPro
     <div className="space-y-4">
       {/* Récapitulatif global */}
       <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-4 text-white">
-        <h3 className="font-bold text-sm mb-3 opacity-90">📊 Récapitulatif total</h3>
+        <h3 className="font-bold text-sm mb-3 opacity-90">📊 Total</h3>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <p className="text-xl font-black">{trips.length}</p>
@@ -67,9 +89,12 @@ export default function TripHistory({ refreshKey, onSelectTrip }: TripHistoryPro
             <p className="text-xs opacity-75">total</p>
           </div>
         </div>
+        {user && (
+          <p className="text-xs opacity-60 text-center mt-2">☁️ Synchronisé sur tous vos appareils</p>
+        )}
       </div>
 
-      {/* Liste des trajets */}
+      {/* Liste */}
       <div className="space-y-2">
         {trips.map((trip) => (
           <div
@@ -82,7 +107,6 @@ export default function TripHistory({ refreshKey, onSelectTrip }: TripHistoryPro
                 <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">
                   {formatDateTime(trip.startTime)}
                 </p>
-                {/* Villes */}
                 {trip.citiesVisited.length > 0 && (
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
                     {trip.citiesVisited.length === 1
@@ -90,7 +114,7 @@ export default function TripHistory({ refreshKey, onSelectTrip }: TripHistoryPro
                       : `${trip.citiesVisited[0].name} → ${trip.citiesVisited[trip.citiesVisited.length - 1].name}`}
                   </p>
                 )}
-                <div className="flex items-center gap-3 mt-2">
+                <div className="flex items-center gap-3 mt-1.5">
                   <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
                     📍 {formatDistance(trip.distanceKm)}
                   </span>
@@ -102,15 +126,12 @@ export default function TripHistory({ refreshKey, onSelectTrip }: TripHistoryPro
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-3 shrink-0">
-                <div className="text-right">
-                  <p className="text-lg font-black text-green-600 dark:text-green-400">
-                    {formatIndemnite(trip.indemnite)}
-                  </p>
-                </div>
+                <p className="text-lg font-black text-green-600 dark:text-green-400">
+                  {formatIndemnite(trip.indemnite)}
+                </p>
                 <button
                   onClick={(e) => handleDelete(trip.id, e)}
                   className="w-7 h-7 rounded-full bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-400 hover:text-red-600 flex items-center justify-center transition-colors text-xs"
-                  title="Supprimer"
                 >
                   ✕
                 </button>

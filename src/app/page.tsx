@@ -7,6 +7,9 @@ import { useGeoTracking } from '@/hooks/useGeoTracking';
 import LiveStats from '@/components/LiveStats';
 import TripReport from '@/components/TripReport';
 import TripHistory from '@/components/TripHistory';
+import AuthModal from '@/components/AuthModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { saveTripToCloud } from '@/lib/supabase';
 
 // Chargement dynamique de la carte (no SSR — Leaflet utilise window)
 const MapTracker = dynamic(() => import('@/components/MapTracker'), {
@@ -21,6 +24,7 @@ const MapTracker = dynamic(() => import('@/components/MapTracker'), {
 type Tab = 'tracker' | 'history';
 
 export default function Home() {
+  const { user, isSupabaseReady } = useAuth();
   const { isTracking, currentTrip, currentCity, userLocation, error, hasWakeLock, gpsPaused, startTracking, stopTracking, requestLocation } =
     useGeoTracking();
   const [completedTrip, setCompletedTrip] = useState<Trip | null>(null);
@@ -28,6 +32,7 @@ export default function Home() {
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [showAuth, setShowAuth] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Timer pour les stats en temps réel
@@ -51,6 +56,8 @@ export default function Home() {
       try {
         const trip = await stopTracking();
         if (trip) {
+          // Sync vers Supabase si l'utilisateur est connecté
+          if (user) await saveTripToCloud(user.id, trip);
           setCompletedTrip(trip);
           setHistoryRefreshKey((k) => k + 1);
         }
@@ -92,12 +99,23 @@ export default function Home() {
             {isTracking && (
               <div title={hasWakeLock ? 'Écran maintenu allumé' : 'Gardez l\'écran allumé'}
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-base ${
-                  hasWakeLock
-                    ? 'bg-green-50 dark:bg-green-900/20'
-                    : 'bg-amber-50 dark:bg-amber-900/20'
+                  hasWakeLock ? 'bg-green-50 dark:bg-green-900/20' : 'bg-amber-50 dark:bg-amber-900/20'
                 }`}>
                 {hasWakeLock ? '🔒' : '🔆'}
               </div>
+            )}
+            {/* Bouton auth (uniquement si Supabase est configuré) */}
+            {isSupabaseReady && (
+              <button
+                onClick={() => setShowAuth(true)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors shrink-0 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
+                title={user ? user.email ?? 'Mon compte' : 'Se connecter'}
+              >
+                {user
+                  ? <span className="text-blue-600 dark:text-blue-400">{user.email?.[0]?.toUpperCase()}</span>
+                  : <span className="text-gray-500 dark:text-gray-400 text-xs">👤</span>
+                }
+              </button>
             )}
           </div>
         </div>
@@ -226,6 +244,9 @@ export default function Home() {
       {completedTrip && (
         <TripReport trip={completedTrip} onClose={handleCloseReport} onNewTrip={handleNewTrip} />
       )}
+
+      {/* Modal auth */}
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </main>
   );
 }
