@@ -21,7 +21,7 @@ const MapTracker = dynamic(() => import('@/components/MapTracker'), {
 type Tab = 'tracker' | 'history';
 
 export default function Home() {
-  const { isTracking, currentTrip, currentCity, userLocation, error, hasWakeLock, startTracking, stopTracking, requestLocation } =
+  const { isTracking, currentTrip, currentCity, userLocation, error, hasWakeLock, gpsPaused, startTracking, stopTracking, requestLocation } =
     useGeoTracking();
   const [completedTrip, setCompletedTrip] = useState<Trip | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('tracker');
@@ -151,12 +151,22 @@ export default function Home() {
               </div>
             )}
 
-            {/* Bannière fond de tâche (iOS uniquement quand wake lock indisponible) */}
-            {isTracking && !hasWakeLock && (
+            {/* Bannière GPS repris après retour depuis Waze/autre app */}
+            {isTracking && gpsPaused && (
+              <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-2xl p-3 flex items-center gap-2 animate-pulse">
+                <span className="text-lg shrink-0">⏸️</span>
+                <p className="text-xs text-orange-700 dark:text-orange-300 font-medium">
+                  GPS en pause (app en arrière-plan) — revenez ici pour reprendre
+                </p>
+              </div>
+            )}
+
+            {/* Bannière Wake Lock indisponible (iOS < 16.4) */}
+            {isTracking && !hasWakeLock && !gpsPaused && (
               <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800 rounded-2xl p-3 flex items-center gap-2">
-                <span className="text-lg shrink-0">📱</span>
+                <span className="text-lg shrink-0">💡</span>
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  <strong>Gardez l&apos;écran allumé</strong> pendant le trajet — le GPS s&apos;arrête si l&apos;écran s&apos;éteint.
+                  <strong>Gardez l&apos;écran allumé</strong> pour un suivi continu. Utilisez Waze puis revenez ici pour reprendre automatiquement.
                 </p>
               </div>
             )}
