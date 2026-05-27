@@ -21,7 +21,7 @@ const MapTracker = dynamic(() => import('@/components/MapTracker'), {
 type Tab = 'tracker' | 'history';
 
 export default function Home() {
-  const { isTracking, currentTrip, currentCity, error, startTracking, stopTracking } =
+  const { isTracking, currentTrip, currentCity, userLocation, error, hasWakeLock, startTracking, stopTracking, requestLocation } =
     useGeoTracking();
   const [completedTrip, setCompletedTrip] = useState<Trip | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('tracker');
@@ -82,12 +82,24 @@ export default function Home() {
               </p>
             </div>
           </div>
-          {isTracking && (
-            <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-xs font-semibold text-red-600 dark:text-red-400">EN COURS</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {isTracking && (
+              <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400">EN COURS</span>
+              </div>
+            )}
+            {isTracking && (
+              <div title={hasWakeLock ? 'Écran maintenu allumé' : 'Gardez l\'écran allumé'}
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-base ${
+                  hasWakeLock
+                    ? 'bg-green-50 dark:bg-green-900/20'
+                    : 'bg-amber-50 dark:bg-amber-900/20'
+                }`}>
+                {hasWakeLock ? '🔒' : '🔆'}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -114,16 +126,38 @@ export default function Home() {
       <div className="flex-1 max-w-lg mx-auto w-full px-4 pb-6 pt-4 flex flex-col gap-4">
         {activeTab === 'tracker' ? (
           <>
-            {/* Carte */}
-            <div className="h-64 sm:h-80">
-              <MapTracker points={currentTrip?.points ?? []} isTracking={isTracking} />
+            {/* Carte — hauteur réduite pour laisser de la place aux contrôles */}
+            <div className="h-44 sm:h-56 rounded-2xl overflow-hidden shadow-md">
+              <MapTracker
+                points={currentTrip?.points ?? []}
+                userLocation={userLocation}
+                isTracking={isTracking}
+              />
             </div>
 
             {/* Erreur GPS */}
             {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 flex items-start gap-3">
-                <span className="text-red-500 text-lg shrink-0">⚠️</span>
-                <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-3 flex items-start gap-3">
+                <span className="text-red-500 shrink-0">⚠️</span>
+                <div className="flex-1">
+                  <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+                </div>
+                <button
+                  onClick={requestLocation}
+                  className="text-xs text-red-600 dark:text-red-400 underline shrink-0"
+                >
+                  Réessayer
+                </button>
+              </div>
+            )}
+
+            {/* Bannière fond de tâche (iOS uniquement quand wake lock indisponible) */}
+            {isTracking && !hasWakeLock && (
+              <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800 rounded-2xl p-3 flex items-center gap-2">
+                <span className="text-lg shrink-0">📱</span>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <strong>Gardez l&apos;écran allumé</strong> pendant le trajet — le GPS s&apos;arrête si l&apos;écran s&apos;éteint.
+                </p>
               </div>
             )}
 

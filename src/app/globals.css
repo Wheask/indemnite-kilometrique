@@ -28,19 +28,22 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Leaflet — éviter les conflits z-index avec les modals */
-.leaflet-pane,
-.leaflet-control {
-  z-index: 10 !important;
-}
-.leaflet-top,
-.leaflet-bottom {
-  z-index: 20 !important;
+/* ─── Leaflet — confiné dans son conteneur, ne déborde pas ─────────────────── */
+
+/* Le conteneur Leaflet remplit son parent */
+.leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
 }
 
-/* Fix pour le conteneur de carte dans Next.js */
-.leaflet-container {
-  height: 100%;
-  width: 100%;
-}
+/* Z-index faibles pour ne pas passer au-dessus des modals (z-50) */
+.leaflet-pane         { z-index: 4 !important; }
+.leaflet-tile-pane    { z-index: 2 !important; }
+.leaflet-overlay-pane { z-index: 4 !important; }
+.leaflet-shadow-pane  { z-index: 5 !important; }
+.leaflet-marker-pane  { z-index: 6 !important; }
+.leaflet-popup-pane   { z-index: 7 !important; }
+.leaflet-top,
+.leaflet-bottom       { z-index: 8 !important; }
+.leaflet-control      { z-index: 8 !important; }
 
